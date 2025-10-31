@@ -7,14 +7,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Enums\HoldStatus;
 use App\Exceptions\HoldConflict;
+use Exception;
 
 class SlotService {
+
+    /**
+     * Get the availability of slots
+     *
+     * @return \Illuminate\Support\Collection
+     */
     public function getAvailability ()
     {
         return Cache::lock('availability_slots_build', 3)->block(3, function () {
             return Cache::remember('availability_slots', 15, function () {
-
-                info('Запрос в БД');
                 return DB::table('slots')
                     ->where('remaining', '>', 0)
                     ->selectRaw('id as slot_id, capacity, remaining')
@@ -23,6 +28,12 @@ class SlotService {
         });
     }
 
+    /**
+     * Create a hold for a slot
+     *
+     * @param int $slotId
+     * @return \Illuminate\Support\Collection
+     */
     public function createHold($slotId)
     {
         return Cache::lock("slot_remaining_{$slotId}", 5)->block(5, function () use ($slotId) {
@@ -31,6 +42,7 @@ class SlotService {
             try {
 
                 $slot = DB::table('slots')
+                    ->lockForUpdate()
                     ->find($slotId);
 
                 if(!$slot) {
@@ -47,8 +59,7 @@ class SlotService {
                     throw new SlotUnavailable('Slot is full');
                 }
 
-                $holdId = DB::table('holds')
-                    ->insertGetId([
+                $holdId = DB::table('holds')->insertGetId([
                         'status' => HoldStatus::HELD,
                         'slot_id' => $slot->id,
                         'created_at' => now(),
@@ -58,17 +69,22 @@ class SlotService {
                 DB::commit();
                 return DB::table('holds')->find($holdId);
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
         });
     }
 
+    /**
+     * Confirm a hold
+     *
+     * @param int $id
+     * @return void
+     */
     public function confirmHold($id)
     {
-        $hold = DB::table('holds')
-            ->find($id);
+        $hold = DB::table('holds')->find($id);
 
         if(!$hold) {
             throw new HoldConflict('Hold not found');
@@ -82,12 +98,12 @@ class SlotService {
 
             try {
                 $updatedCount = DB::table('holds')
-                ->where('id', $id)
-                ->where('status', HoldStatus::HELD)
-                ->where('expires_at', '>', now())
-                ->update([
-                    'status' => HoldStatus::CONFIRMED,
-                ]);
+                    ->where('id', $id)
+                    ->where('status', HoldStatus::HELD)
+                    ->where('expires_at', '>', now())
+                    ->update([
+                        'status' => HoldStatus::CONFIRMED,
+                    ]);
 
                 if($updatedCount === 0) {
                     throw new HoldConflict('Hold not found');
@@ -105,18 +121,22 @@ class SlotService {
                 DB::commit();
                 Cache::forget('availability_slots');
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
         });
     }
 
-
+    /**
+     * Cancel a hold
+     *
+     * @param int $id
+     * @return void
+     */
     public function cancelHold($id)
     {
-        $hold = DB::table('holds')
-            ->find($id);
+        $hold = DB::table('holds')->find($id);
 
         if(!$hold) {
             throw new HoldConflict('Hold not found');
@@ -130,11 +150,11 @@ class SlotService {
 
             try {
                 $updatedCount = DB::table('holds')
-                ->where('id', $id)
-                ->where('status', HoldStatus::CONFIRMED)
-                ->update([
-                    'status' => HoldStatus::CANCELLED,
-                ]);
+                    ->where('id', $id)
+                    ->where('status', HoldStatus::CONFIRMED)
+                    ->update([
+                        'status' => HoldStatus::CANCELLED,
+                    ]);
 
                 if($updatedCount === 0) {
                     throw new HoldConflict('Hold not found');
@@ -152,7 +172,7 @@ class SlotService {
                 DB::commit();
                 Cache::forget('availability_slots');
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
