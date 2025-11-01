@@ -5,9 +5,11 @@
 composer install
 ```
 
+## Настроить .env на использование mysql и redis, создать БД
+
 ## Применить миграции
 ```bash
-php arisan migrate --seed
+php artisan migrate --seed
 ```
 
 ## Запустить сервер (порт:8000)

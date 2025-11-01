@@ -106,7 +106,7 @@ class SlotService {
                     ]);
 
                 if($updatedCount === 0) {
-                    throw new HoldConflict('Hold not found');
+                    throw new HoldConflict('Already confirmed or expired');
                 }
 
                 $updatedSlot = DB::table('slots')
@@ -157,7 +157,7 @@ class SlotService {
                     ]);
 
                 if($updatedCount === 0) {
-                    throw new HoldConflict('Hold not found');
+                    throw new HoldConflict('Already cancelled');
                 }
 
                 $updatedSlot = DB::table('slots')
