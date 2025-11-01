@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Exceptions\SlotUnavailable;
 use App\Exceptions\HoldConflict;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (HoldConflict $e, $request) {
             return response()->json(['message' => 'Hold conflict'], 409);
+        });
+
+        $exceptions->render(function (LockTimeoutException $e, $request) {
+            return response()->json(['message' => 'Resource is busy'], 423);
         });
 
     })->create();
